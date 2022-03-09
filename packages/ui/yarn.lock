@@ -4444,9 +4444,9 @@ postcss@^8.2.15, postcss@^8.4.6:
   resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.4.6.tgz#c5ff3c3c457a23864f32cb45ac9b741498a09ae1"
   integrity sha512-OovjwIzs9Te46vlEx7+uXB0PLijpwjXGKXjVGGPIGubGpq7uh5Xgf6D6FiJ/SzJMBosHDp6a2hiXOS97iBXcaA==
   dependencies:
-    nanoid "^3.2.0"
+    nanoid "^3.1.30"
     picocolors "^1.0.0"
-    source-map-js "^1.0.2"
+    source-map-js "^1.0.1"
 
 process-nextick-args@~2.0.0:
   version "2.0.1"
