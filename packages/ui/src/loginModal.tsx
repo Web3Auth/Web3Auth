@@ -29,6 +29,8 @@ function createWrapper(): HTMLElement {
 }
 
 export default class LoginModal extends SafeEventEmitter {
+  public externalWalletList: string[];
+
   private appLogo: string;
 
   private version: string;
@@ -70,7 +72,6 @@ export default class LoginModal extends SafeEventEmitter {
             handleExternalWalletClick={(params) => this.handleExternalWalletClick(params)}
             handleSocialLoginClick={(params) => this.handleSocialLoginClick(params)}
             appLogo={this.appLogo}
-            version={this.version}
           />
         </ThemedContext.Provider>,
         createWrapper()
@@ -109,13 +110,15 @@ export default class LoginModal extends SafeEventEmitter {
     this.setState({
       modalVisibility: false,
       externalWalletsVisibility: false,
+      hiddenSocialLogin: true,
     });
     this.emit(LOGIN_MODAL_EVENTS.MODAL_VISIBILITY, false);
   };
 
-  initExternalWalletContainer = () => {
+  initExternalWalletContainer = (params: string[]) => {
     this.setState({
       hasExternalWallets: true,
+      externalWalletList: params,
     });
   };
 

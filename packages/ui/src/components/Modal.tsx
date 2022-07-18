@@ -1,6 +1,6 @@
 import { LOGIN_PROVIDER } from "@toruslabs/openlogin";
 import type { SafeEventEmitter } from "@toruslabs/openlogin-jrpc";
-import { log, WALLET_ADAPTERS } from "@web3auth/base";
+import { EVM_ADAPTERS, log, MULTI_CHAIN_ADAPTERS, WALLET_ADAPTERS } from "@web3auth/base";
 import cloneDeep from "lodash.clonedeep";
 import deepmerge from "lodash.merge";
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -11,14 +11,13 @@ import AdapterLoader from "./AdapterLoader";
 import ExternalWallets from "./ExternalWallets";
 import Footer from "./Footer";
 import Header from "./Header";
+import Image from "./Image";
 import Loader from "./Loader";
-import SocialLoginEmail from "./SocialLoginEmail";
-import SocialLogins from "./SocialLogins";
+import SocialLoginButton from "./SocialLoginButton";
 
 interface ModalProps {
   stateListener: SafeEventEmitter;
   appLogo?: string;
-  version: string;
   handleSocialLoginClick: (params: SocialLoginEventType) => void;
   handleExternalWalletClick: (params: ExternalWalletEventType) => void;
   handleShowExternalWallets: (externalWalletsInitialized: boolean) => void;
@@ -30,15 +29,19 @@ log.enableAll();
 export default function Modal(props: ModalProps) {
   const { isDark } = useContext(ThemedContext);
   const [modalTransitionClasses, setModalTransitionClasses] = useState(["w3a-modal__inner"]);
+  const [loginIcons, setIcons] = useState([]);
+  const [walletIcon, setWalletIcon] = useState("");
   const [modalState, setModalState] = useState<ModalState>({
     externalWalletsVisibility: false,
     status: MODAL_STATUS.INITIALIZED,
     hasExternalWallets: false,
+    externalWalletList: [],
     externalWalletsInitialized: false,
     modalVisibility: false,
     modalVisibilityDelayed: false,
     postLoadingMessage: "",
     walletConnectUri: "",
+    hiddenSocialLogin: true,
     socialLoginsConfig: {
       loginMethods: {},
       loginMethodsOrder: [],
@@ -50,11 +53,13 @@ export default function Modal(props: ModalProps) {
     wcAdapters: [],
   });
 
-  const { stateListener, appLogo, version, handleSocialLoginClick, handleExternalWalletClick, handleShowExternalWallets, closeModal } = props;
+  const { stateListener, appLogo, handleSocialLoginClick, handleExternalWalletClick, handleShowExternalWallets, closeModal } = props;
   const DETAILED_ADAPTERS = [WALLET_ADAPTERS.PHANTOM, WALLET_ADAPTERS.METAMASK];
+  const hasLightIcons = ["apple", "github"];
 
   useEffect(() => {
     stateListener.emit("MOUNTED");
+
     stateListener.on("STATE_UPDATED", (newModalState: Partial<ModalState>) => {
       log.debug("state updated", newModalState);
 
@@ -66,6 +71,33 @@ export default function Modal(props: ModalProps) {
   }, [stateListener]);
 
   useEffect(() => {
+    const tempExternalWalletList = modalState.externalWalletList;
+    if (tempExternalWalletList.length > 0) {
+      if (tempExternalWalletList.includes(EVM_ADAPTERS.METAMASK)) {
+        setWalletIcon(EVM_ADAPTERS.METAMASK);
+      } else if (tempExternalWalletList.includes(MULTI_CHAIN_ADAPTERS.WALLET_CONNECT_V1)) {
+        setWalletIcon(MULTI_CHAIN_ADAPTERS.WALLET_CONNECT_V1);
+      } else {
+        setWalletIcon(tempExternalWalletList[0]);
+      }
+    }
+  }, [modalState.externalWalletList]);
+
+  useEffect(() => {
+    const loginsList = Object.keys(modalState.socialLoginsConfig.loginMethods).filter((loginMethodKey) => {
+      return modalState.socialLoginsConfig.loginMethods[loginMethodKey].showOnModal;
+    });
+    if (loginsList.length > 3) {
+      const tempIconList = loginsList.filter((item) => {
+        return item !== LOGIN_PROVIDER.FACEBOOK;
+      });
+      setIcons(tempIconList.slice(0, 3));
+    } else if (loginsList.length <= 3) {
+      setIcons(loginsList);
+    }
+  }, [modalState.socialLoginsConfig.loginMethods]);
+
+  useEffect(() => {
     let timeOutId: number;
     if (modalState.modalVisibility) {
       setModalState((prevState) => {
@@ -74,11 +106,9 @@ export default function Modal(props: ModalProps) {
 
       timeOutId = window.setTimeout(() => {
         setModalTransitionClasses(["w3a-modal__inner", modalState.modalVisibility ? "w3a-modal__inner--active" : ""]);
-        // hide external wallets, if modal is closing, so that it will show social login screen on reopen.
       }, 100);
     } else {
       setModalTransitionClasses(["w3a-modal__inner", modalState.modalVisibility ? "w3a-modal__inner--active" : ""]);
-      // hide external wallets, if modal is closing, so that it will show social login screen on reopen.
 
       timeOutId = window.setTimeout(() => {
         setModalState((prevState) => {
@@ -122,10 +152,15 @@ export default function Modal(props: ModalProps) {
     handleSocialLoginClick(params);
   };
 
+  const showWalletIcon = (
+    <div>
+      <Image imageId={`login-${walletIcon}`} />
+    </div>
+  );
+
   const externalWalletButton = (
     <div className="w3ajs-external-wallet w3a-group">
       <div className="w3a-external-toggle w3ajs-external-toggle">
-        <div className="w3a-group__title">EXTERNAL WALLET</div>
         <button
           type="button"
           className="w3a-button w3ajs-external-toggle__button"
@@ -139,7 +174,40 @@ export default function Modal(props: ModalProps) {
             });
           }}
         >
-          Connect with Wallet
+          {showWalletIcon}
+          <span className="w3a-button--text">External wallet</span>
+        </button>
+      </div>
+    </div>
+  );
+  const showIcons = (
+    <div className="w3a-button-group">
+      {loginIcons.map((item) => {
+        return (
+          <Image
+            key={item}
+            cls={loginIcons.length < 3 ? "w3a-button--icon-background" : "w3a-button--icon-overlap"}
+            imageId={`login-${item}${isDark && hasLightIcons.includes(item) ? "-light" : ""}`}
+          />
+        );
+      })}
+    </div>
+  );
+
+  const socialLoginButtonGroup = (
+    <div className="w3ajs-external-wallet w3a-social-button">
+      <div className="w3a-external-toggle w3ajs-external-toggle">
+        <button
+          type="button"
+          className="w3a-button w3ajs-external-toggle__button"
+          onClick={() => {
+            setModalState((prevState) => {
+              return { ...prevState, hiddenSocialLogin: !modalState.hiddenSocialLogin };
+            });
+          }}
+        >
+          {showIcons}
+          <span className="w3a-button--text">Self-custodial logins</span>
         </button>
       </div>
     </div>
@@ -156,7 +224,7 @@ export default function Modal(props: ModalProps) {
   }, [modalState.showExternalWalletsOnly, modalState.socialLoginsConfig?.loginMethods]);
   log.info("modal state", modalState, areSocialLoginsVisible);
 
-  const isEmailPassworedlessLoginVisible = useMemo(() => {
+  const isEmailPasswordlessLoginVisible = useMemo(() => {
     return modalState.socialLoginsConfig?.loginMethods[LOGIN_PROVIDER.EMAIL_PASSWORDLESS]?.showOnModal;
   }, [modalState.socialLoginsConfig?.loginMethods]);
 
@@ -182,24 +250,25 @@ export default function Modal(props: ModalProps) {
             </div>
           ) : (
             <div className="w3a-modal__content w3ajs-content">
-              {(areSocialLoginsVisible || isEmailPassworedlessLoginVisible) && !modalState.externalWalletsVisibility ? (
+              {(areSocialLoginsVisible || isEmailPasswordlessLoginVisible) && !modalState.externalWalletsVisibility ? (
+                // eslint-disable-next-line react/jsx-no-useless-fragment
                 <>
-                  {areSocialLoginsVisible ? (
-                    <SocialLogins
-                      handleSocialLoginClick={(params: SocialLoginEventType) => preHandleSocialWalletClick(params)}
-                      socialLoginsConfig={modalState.socialLoginsConfig}
-                    />
-                  ) : null}
-
-                  {isEmailPassworedlessLoginVisible && (
-                    <SocialLoginEmail
-                      adapter={modalState.socialLoginsConfig?.adapter}
-                      handleSocialLoginClick={(params: SocialLoginEventType) => preHandleSocialWalletClick(params)}
+                  {modalState.hiddenSocialLogin ? (
+                    <>
+                      {/* button to show social logins */}
+                      {(areSocialLoginsVisible || isEmailPasswordlessLoginVisible) && socialLoginButtonGroup}
+                      {/* button to show external wallets */}
+                      {modalState.hasExternalWallets && externalWalletButton}
+                    </>
+                  ) : (
+                    <SocialLoginButton
+                      modalState={modalState as ModalState}
+                      setModalState={setModalState}
+                      areSocialLoginsVisible={areSocialLoginsVisible}
+                      preHandleSocialWalletClick={preHandleSocialWalletClick}
+                      isEmailPasswordlessLoginVisible={isEmailPasswordlessLoginVisible}
                     />
                   )}
-
-                  {/* button to show external wallets */}
-                  {modalState.hasExternalWallets && externalWalletButton}
                 </>
               ) : (
                 <ExternalWallets
@@ -219,7 +288,7 @@ export default function Modal(props: ModalProps) {
             </div>
           )}
 
-          <Footer version={version} />
+          <Footer />
         </div>
       </div>
     )
